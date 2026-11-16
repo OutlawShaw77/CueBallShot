@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pool shot simulator: can the cue ball reach the red ball?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --bg:#f6f7f9; --panel:#ffffff; --ink:#14181f; --ink2:#566070; --line:#dde1e8; --mirror:#2f6fd6;
+  --c0:#12856a; --c1:#6a5fd0; --c2:#d4572a; --cmiss:#c3c7cf; --marker:#14181f;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1318; --panel:#171c23; --ink:#eef1f5; --ink2:#9aa5b5; --line:#2a323d; --mirror:#6aa2ff;
+    --c0:#3fc9a2; --c1:#9a90ff; --c2:#ff8a5c; --cmiss:#3a424e; --marker:#eef1f5;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1318; --panel:#171c23; --ink:#eef1f5; --ink2:#9aa5b5; --line:#2a323d; --mirror:#6aa2ff;
+  --c0:#3fc9a2; --c1:#9a90ff; --c2:#ff8a5c; --cmiss:#3a424e; --marker:#eef1f5;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+*,*::before,*::after{box-sizing:inherit;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px;line-height:1.6;}
+main{max-width:940px;margin:0 auto;padding:40px 20px 56px;}
+h1{font-family:"Newsreader",Georgia,"Times New Roman",serif;font-weight:500;font-size:clamp(28px,5vw,42px);line-height:1.12;margin:0 0 12px;letter-spacing:-.01em;}
+.lede{max-width:64ch;color:var(--ink2);margin:0 0 28px;}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;align-items:start;}
+@media (max-width:760px){.layout{grid-template-columns:minmax(0,1fr);}}
+.stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px;}
+.stage canvas{display:block;width:100%;height:auto;aspect-ratio:6/7;}
+.side{display:flex;flex-direction:column;gap:18px;}
+.ctl label{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;color:var(--ink2);margin-bottom:6px;}
+.ctl output{font-size:26px;font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums;}
+input[type=range]{width:100%;accent-color:var(--c2);height:28px;}
+.presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+button{font:inherit;font-size:14px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;}
+button:hover{border-color:var(--ink2);}
+button:focus-visible,input:focus-visible{outline:2px solid var(--mirror);outline-offset:2px;}
+.reads{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.read{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;}
+.read span{display:block;font-size:13px;color:var(--ink2);}
+.read b{display:block;font-size:22px;font-weight:500;}
+.stripwrap h2,.math h2{font-family:"Newsreader",Georgia,serif;font-weight:500;font-size:22px;margin:0 0 8px;}
+#strip{width:100%;height:40px;display:block;border-radius:6px;cursor:pointer;border:1px solid var(--line);}
+.ticks{display:flex;justify-content:space-between;font-size:12px;color:var(--ink2);margin-top:4px;}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:13px;color:var(--ink2);}
+.legend i{display:inline-block;width:11px;height:11px;border-radius:2px;margin-right:6px;vertical-align:-1px;}
+.math{margin-top:36px;border-top:1px solid var(--line);padding-top:24px;max-width:72ch;}
+.math p{margin:0 0 12px;color:var(--ink2);}
+.math code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:1px 6px;}
+.math table{border-collapse:collapse;width:100%;font-size:14px;display:block;overflow-x:auto;}
+.math th,.math td{text-align:left;padding:8px 12px 8px 0;border-bottom:1px solid var(--line);white-space:nowrap;}
+.math th{font-weight:500;color:var(--ink2);}
+</style>
+</head>
+<body>
+<main>
+  <h1>Pool shot: which directions send the cue ball into the red ball?</h1>
+  <p class="lede">The cue ball starts at (0, 0) and the red ball sits at (0, 5), both with radius 1. Rails run along x = 5, x = −5, and y = 10, and the bottom is open. Strike the cue ball at any angle. The shot counts the moment the cue ball touches the red ball, however many rails it bounces off first.</p>
+
+  <div class="layout">
+    <div class="stage"><canvas id="cv" width="720" height="840" role="img" aria-label="Pool table showing the cue ball path, the rails, and the red ball"></canvas></div>
+    <div class="side">
+      <div class="ctl">
+        <label for="ang">Shot angle <output id="angout">25.0°</output></label>
+        <input type="range" id="ang" min="0.1" max="179.9" step="0.1" value="25">
+        <div class="presets">
+          <button data-a="25">25°</button><button data-a="45">45°</button><button data-a="58">58°</button><button data-a="65">65°</button><button data-a="90">90°</button>
+        </div>
+      </div>
+      <div class="reads">
+        <div class="read"><span>Result</span><b id="res">-</b></div>
+        <div class="read"><span>Rail bounces first</span><b id="refl">-</b></div>
+      </div>
+      <div class="stripwrap">
+        <h2>Every angle at once</h2>
+        <canvas id="strip" width="720" height="40" aria-label="Outcome by shot angle from 0 to 180 degrees. Click to set the angle."></canvas>
+        <div class="ticks"><span>0°</span><span>45°</span><span>90°</span><span>135°</span><span>180°</span></div>
+        <div class="legend">
+          <span><i style="background:var(--c0)"></i>straight in</span>
+          <span><i style="background:var(--c1)"></i>1 bounce</span>
+          <span><i style="background:var(--c2)"></i>2 or more</span>
+          <span><i style="background:var(--cmiss)"></i>never hits</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="math">
+    <h2>The math</h2>
+    <p>Track the cue ball’s center. It touches the red ball when the two centers are 1 + 1 = 2 apart, so the red ball acts like a target of radius 2. A ray from the origin at angle θ reaches a target of radius r centered at (a, b) when <code>|a sin θ − b cos θ| ≤ r</code>.</p>
+    <p>The cue ball’s edge meets a rail when its center is 1 unit away, so the center bounces off the shrunken rails x = ±4 and y = 9 (the dashed box on the table). To handle bounces, reflect the red ball across those rails and fire a straight ray at the images.</p>
+    <table>
+      <thead><tr><th>Path</th><th>Image center</th><th>Angles</th></tr></thead>
+      <tbody>
+        <tr><td>Straight in</td><td>(0, 5)</td><td>66.42° to 113.58°</td></tr>
+        <tr><td>Right rail, then red</td><td>(8, 5)</td><td>19.76° to 44.24°</td></tr>
+        <tr><td>Left rail, then red</td><td>(−8, 5)</td><td>135.76° to 160.24°</td></tr>
+        <tr><td>At most one bounce</td><td></td><td>19.76° to 44.24°, 66.42° to 113.58°, 135.76° to 160.24°</td></tr>
+        <tr><td>Any number of bounces</td><td>(8k, 5) and (8k, 13)</td><td>0° to 44.66°, 50.87° to 65.92°, 66.42° to 113.58°, 114.08° to 129.13°, 135.34° to 180°</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:12px">The balls are treated as ideal: no friction, no spin, perfect rail bounces. Shots aimed downward leave through the open bottom, and the simulator stops after 400 bounces, so angles under about 0.4° can show as misses.</p>
+  </section>
+</main>
+<script>
+var CUE={x:0,y:0,r:1}, RED={x:0,y:5,r:1}, RAIL_X=5, RAIL_Y=10, MAXB=400;
+var WX=RAIL_X-CUE.r, WY=RAIL_Y-CUE.r, HITD=CUE.r+RED.r;
+
+function trace(deg){
+  var t=deg*Math.PI/180,x=CUE.x,y=CUE.y,dx=Math.cos(t),dy=Math.sin(t),pts=[[x,y]],n=0;
+  if(dy<=0){return {hit:false,n:0,pts:[[x,y],[x+dx*20,y+dy*20]]};}
+  for(var i=0;i<=MAXB;i++){
+    var tw=Infinity;
+    if(dx>1e-12)tw=(WX-x)/dx;else if(dx<-1e-12)tw=(-WX-x)/dx;
+    var ty=dy>0?(WY-y)/dy:Infinity;
+    var tm=Math.min(tw,ty);
+    var fx=x-RED.x,fy=y-RED.y,b=fx*dx+fy*dy,c=fx*fx+fy*fy-HITD*HITD,disc=b*b-c,tc=Infinity;
+    if(disc>=0){var s=Math.sqrt(disc),r1=-b-s,r2=-b+s;if(r1>=0)tc=r1;else if(r2>=0)tc=r2;}
+    if(tc<=tm){pts.push([x+dx*tc,y+dy*tc]);return {hit:true,n:n,pts:pts};}
+    x+=dx*tm;y+=dy*tm;pts.push([x,y]);
+    if(tm===tw)dx=-dx;else dy=-dy;
+    n++;
+  }
+  return {hit:false,n:n,pts:pts};
+}
+
+var cv=document.getElementById('cv'),g=cv.getContext('2d'),W=720,H=840;
+var X0=-6,X1=6,Y0=-2.5,Y1=11.5,S=W/(X1-X0);
+function px(x){return (x-X0)*S;}
+function py(y){return H-(y-Y0)*S;}
+function v(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+var ang=document.getElementById('ang'),strip=document.getElementById('strip'),sg=strip.getContext('2d'),stripImg=null;
+
+function ball(cx,cy,r,inner,outer,edge){
+  var X=px(cx),Y=py(cy),R=r*S;
+  g.save();
+  g.shadowColor='rgba(0,0,0,.35)';g.shadowBlur=14;g.shadowOffsetY=4;
+  var gr=g.createRadialGradient(X-R*.3,Y-R*.35,R*.1,X,Y,R);
+  gr.addColorStop(0,inner);gr.addColorStop(.75,outer);gr.addColorStop(1,edge);
+  g.fillStyle=gr;g.beginPath();g.arc(X,Y,R,0,Math.PI*2);g.fill();
+  g.restore();
+}
+
+function draw(a){
+  var r=trace(a),p=r.pts;
+  g.clearRect(0,0,W,H);
+  var felt=g.createLinearGradient(0,py(10),0,py(Y0));
+  felt.addColorStop(0,'#1f6b52');felt.addColorStop(1,'rgba(31,107,82,0.15)');
+  g.fillStyle=felt;g.fillRect(px(-RAIL_X),py(RAIL_Y),2*RAIL_X*S,(RAIL_Y-Y0)*S);
+  g.strokeStyle='rgba(255,255,255,.28)';g.setLineDash([6,6]);g.lineWidth=1.5;
+  g.strokeRect(px(-WX),py(WY),2*WX*S,(WY-Y0)*S);g.setLineDash([]);
+  g.strokeStyle='#8a5a36';g.lineWidth=10;g.lineCap='round';
+  g.beginPath();g.moveTo(px(RAIL_X),py(Y0+.2));g.lineTo(px(RAIL_X),py(RAIL_Y));g.lineTo(px(-RAIL_X),py(RAIL_Y));g.lineTo(px(-RAIL_X),py(Y0+.2));g.stroke();
+  g.fillStyle='rgba(255,255,255,.7)';g.font='500 14px "IBM Plex Sans",sans-serif';
+  g.fillText('x = 5',px(RAIL_X)-52,py(-1.6));g.fillText('x = \u22125',px(-RAIL_X)+14,py(-1.6));g.fillText('y = 10',px(0)-24,py(RAIL_Y)+28);
+
+  ball(RED.x,RED.y,RED.r,'#ff9c8a','#d9362b','rgba(160,20,15,.55)');
+
+  g.strokeStyle='rgba(255,255,255,.92)';g.lineWidth=3;g.lineJoin='round';g.setLineDash([2,7]);
+  g.beginPath();g.moveTo(px(p[0][0]),py(p[0][1]));
+  var lim=Math.min(p.length,80);
+  for(var k=1;k<lim;k++)g.lineTo(px(p[k][0]),py(p[k][1]));
+  g.stroke();g.setLineDash([]);
+
+  if(r.hit){
+    var e=p[p.length-1],X=px(e[0]),Y=py(e[1]);
+    g.strokeStyle='rgba(255,255,255,.9)';g.lineWidth=2;g.setLineDash([5,4]);
+    g.beginPath();g.arc(X,Y,CUE.r*S,0,Math.PI*2);g.stroke();g.setLineDash([]);
+    g.fillStyle='rgba(255,255,255,.18)';g.beginPath();g.arc(X,Y,CUE.r*S,0,Math.PI*2);g.fill();
+  }
+  ball(CUE.x,CUE.y,CUE.r,'#ffffff','#ececec','rgba(200,200,200,.5)');
+
+  document.getElementById('angout').textContent=a.toFixed(1)+'\u00B0';
+  document.getElementById('res').textContent=r.hit?'Hits red':'Misses';
+  document.getElementById('refl').textContent=r.hit?String(r.n):'\u2013';
+}
+
+function buildStrip(){
+  var off=document.createElement('canvas');off.width=720;off.height=40;var o=off.getContext('2d');
+  for(var i=0;i<720;i++){
+    var a=(i+.5)/720*180,r=trace(a),col=v('--cmiss');
+    if(r.hit)col=r.n===0?v('--c0'):(r.n===1?v('--c1'):v('--c2'));
+    o.fillStyle=col;o.fillRect(i,0,1,40);
+  }
+  stripImg=off;
+}
+function render(){
+  var a=parseFloat(ang.value);
+  draw(a);
+  sg.clearRect(0,0,720,40);sg.drawImage(stripImg,0,0);
+  sg.fillStyle=v('--marker');sg.fillRect(a/180*720-2,0,4,40);
+}
+function setA(a){a=Math.max(.1,Math.min(179.9,a));ang.value=a;render();}
+ang.addEventListener('input',render);
+document.querySelectorAll('.presets button').forEach(function(b){b.addEventListener('click',function(){setA(parseFloat(b.dataset.a));});});
+strip.addEventListener('click',function(ev){var rc=strip.getBoundingClientRect();setA(Math.round((ev.clientX-rc.left)/rc.width*1800)/10);});
+function full(){buildStrip();render();}
+full();
+if(window.matchMedia){window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',full);}
+</script>
+</body>
+</html>
